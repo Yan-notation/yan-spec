@@ -104,8 +104,8 @@ class YANParser {
     // Remove block comments /* */
     text = text.replace(/\/\*[\s\S]*?\*\//g, '');
 
-    // Remove line comments //
-    text = text.replace(/\/\/.*$/gm, '');
+    // Remove line comments #
+    text = text.replace(/#.*$/gm, '');
 
     return text;
   }
@@ -327,9 +327,9 @@ class YANParser {
       case 'float':
         return parseFloat(rawValue);
       case 'date':
-        return new Date(rawValue + 'T00:00:00Z');
+        return { __type: 'date', __value: rawValue };
       case 'datetime':
-        return new Date(rawValue);
+        return { __type: 'datetime', __value: rawValue };
       case 'bool':
         return ['true', 'yes', 'on', '1'].includes(rawValue.toLowerCase());
       case 'hex':
@@ -372,7 +372,7 @@ function demo() {
   const parser = new YANParser();
 
   const sample = `
-// Configurasi aplikasi
+# Configurasi aplikasi
 app:
   name: "Super App"
   version: 1.2.0

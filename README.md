@@ -10,7 +10,7 @@
 YAN (Yet Another Notation) is a lightweight, text-based, language-independent data format designed to be easy for humans to read and write while remaining trivial for machines to parse and generate.
 
 ```yan
-// config.yan
+# config.yan
 server:
   host: localhost
   port: @int 8080
@@ -24,7 +24,7 @@ database:
 ## Features
 
 - **No quotes on keys** — `name: Budi` instead of `"name": "Budi"`
-- **Comments** — `// line` and `/* block */`
+- **Comments** — `# line` and `/* block */`
 - **Flexible booleans** — `true`, `false`, `yes`, `no`, `on`, `off`
 - **Type hints** — `@date 2026-06-27`, `@hex deadbeef`
 - **Hybrid nesting** — indentation + inline braces

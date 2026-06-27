@@ -79,7 +79,7 @@ test('nested block', () => {
 });
 
 test('line comment', () => {
-  assertEqual(parser.parse('// comment\nname: Budi'), { name: 'Budi' });
+  assertEqual(parser.parse('# comment\nname: Budi'), { name: 'Budi' });
 });
 
 test('block comment', () => {
