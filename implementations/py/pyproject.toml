@@ -3,7 +3,7 @@ requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "yan"
+name = "yan-notation"
 version = "1.0.0"
 description = "YAN (Yet Another Notation) parser for Python"
 readme = "README.md"

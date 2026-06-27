@@ -37,29 +37,47 @@ database:
 
 ## Implementations
 
-| Language | Package | Status |
-|----------|---------|--------|
-| JavaScript | `yan-parser` | ✅ Available |
-| Python | `yan` | ✅ Available |
+| Language   | Package        | Status         |
+|------------|----------------|----------------|
+| JavaScript | `yan-notation` | ✅ Available    |
+| Python     | `yan-notation` | ✅ Available    |
+| Rust       | `yan-notation` | ✅ Available    |
+| C          | —              | ✅ Source only  |
+| Go         | —              | 🚧 Planned      |
 
 ## Quick Start
 
 ### JavaScript
 ```bash
-npm install yan-parser
+npm install yan-notation
 ```
 ```js
-const { YANParser } = require('yan-parser');
+const { YANParser } = require('yan-notation');
 const data = new YANParser().parse(`name: Budi\nage: 25`);
 ```
 
 ### Python
 ```bash
-pip install yan
+pip install yan-notation
 ```
 ```python
 import yan
 data = yan.parse("name: Budi\nage: 25")
+```
+
+### Rust
+```bash
+cargo add yan-notation
+```
+```rust
+use yan_notation::YANParser;
+let data = YANParser::new().parse("name: Budi\nage: 25")?;
+```
+
+### C
+```bash
+cd implementations/c && make
+./yan path/to/file.yan
 ```
 
 ## Test Suite

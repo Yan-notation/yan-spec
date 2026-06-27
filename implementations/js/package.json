@@ -1,5 +1,5 @@
 {
-  "name": "yan-parser",
+  "name": "yan-notation",
   "version": "1.0.0",
   "description": "YAN (Yet Another Notation) parser for JavaScript",
   "main": "src/yan-parser.js",
