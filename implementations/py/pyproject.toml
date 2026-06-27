@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "yan-notation"
-version = "1.0.0"
+version = "1.0.1"
 description = "YAN (Yet Another Notation) parser for Python"
 readme = "README.md"
 license = {text = "CC0-1.0"}
