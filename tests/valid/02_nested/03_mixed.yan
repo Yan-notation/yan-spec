@@ -1,0 +1,3 @@
+person:
+  name: Budi
+  address: {city: jakarta; country: indonesia}

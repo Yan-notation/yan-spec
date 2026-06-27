@@ -1,0 +1,1 @@
+{"server": {"host": "0.0.0.0", "port": 8080, "debug": false}, "database": {"driver": "postgresql", "host": "localhost", "port": 5432, "username": "admin", "password": "secret123!", "pool": {"min": 5, "max": 20}}}

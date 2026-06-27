@@ -1,0 +1,14 @@
+# Server configuration
+server:
+  host: 0.0.0.0
+  port: @int 8080
+  debug: off
+
+# Database settings
+database:
+  driver: postgresql
+  host: localhost
+  port: 5432
+  username: admin
+  password: "secret123!"
+  pool: {min: 5; max: 20}

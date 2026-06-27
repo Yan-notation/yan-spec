@@ -1,0 +1,21 @@
+{
+  "name": "yan-parser",
+  "version": "1.0.0",
+  "description": "YAN (Yet Another Notation) parser for JavaScript",
+  "main": "src/yan-parser.js",
+  "scripts": {
+    "test": "node test/test.js"
+  },
+  "keywords": [
+    "yan",
+    "parser",
+    "config",
+    "serialization"
+  ],
+  "license": "CC0-1.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yan-notation/yan-spec.git",
+    "directory": "implementations/js"
+  }
+}

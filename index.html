@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YAN Playground — Yet Another Notation</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg2: #161b22;
+    --bg3: #21262d;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text2: #8b949e;
+    --accent: #58a6ff;
+    --accent2: #238636;
+    --error: #f85149;
+    --warn: #d29922;
+    --string: #a5d6ff;
+    --number: #79c0ff;
+    --bool: #ff7b72;
+    --null: #ff7b72;
+    --key: #d2a8ff;
+    --comment: #8b949e;
+    --typehint: #ffa657;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg2);
+  }
+  header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  header h1 span { color: var(--accent); }
+  .links a {
+    color: var(--text2);
+    text-decoration: none;
+    margin-left: 16px;
+    font-size: 13px;
+    transition: color 0.2s;
+  }
+  .links a:hover { color: var(--accent); }
+  .toolbar {
+    padding: 8px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: var(--bg);
+  }
+  .toolbar select, .toolbar button {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .toolbar button:hover { background: var(--border); }
+  .toolbar button.primary {
+    background: var(--accent2);
+    border-color: var(--accent2);
+    color: #fff;
+  }
+  .toolbar button.primary:hover { opacity: 0.9; }
+  .toolbar .status {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .status.ok { color: var(--accent2); }
+  .status.err { color: var(--error); }
+  main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+  .pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .pane:first-child { border-right: 1px solid var(--border); }
+  .pane-label {
+    padding: 8px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text2);
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .pane-label span { color: var(--accent); }
+  textarea, pre {
+    flex: 1;
+    width: 100%;
+    padding: 16px;
+    border: none;
+    outline: none;
+    resize: none;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    background: var(--bg);
+    color: var(--text);
+    overflow: auto;
+    white-space: pre;
+    tab-size: 2;
+  }
+  textarea::placeholder { color: var(--text2); opacity: 0.5; }
+  pre { position: relative; }
+  .error-bar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    background: var(--error);
+    color: #fff;
+    padding: 8px 16px;
+    font-size: 12px;
+    display: none;
+  }
+  .error-bar.show { display: block; }
+  .line-numbers {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 40px;
+    padding: 16px 8px;
+    text-align: right;
+    color: var(--text2);
+    font-size: 12px;
+    line-height: 1.6;
+    background: var(--bg);
+    border-right: 1px solid var(--border);
+    user-select: none;
+    overflow: hidden;
+  }
+  .editor-wrap { position: relative; flex: 1; display: flex; }
+  textarea { padding-left: 56px; }
+  .json-key { color: var(--key); }
+  .json-string { color: var(--string); }
+  .json-number { color: var(--number); }
+  .json-bool { color: var(--bool); }
+  .json-null { color: var(--null); }
+  footer {
+    padding: 8px 24px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text2);
+    text-align: center;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+  @media (max-width: 768px) {
+    main { flex-direction: column; }
+    .pane:first-child { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span>YAN</span> Playground</h1>
+  <div class="links">
+    <a href="https://github.com/yan-notation/yan-spec/blob/main/SPEC.md" target="_blank">Spec</a>
+    <a href="https://github.com/yan-notation/yan-spec" target="_blank">GitHub</a>
+  </div>
+</header>
+
+<div class="toolbar">
+  <select id="examples">
+    <option value="config">Config File</option>
+    <option value="user">User Profile</option>
+    <option value="simple">Simple Key-Value</option>
+    <option value="nested">Deep Nesting</option>
+    <option value="types">Type Hints</option>
+    <option value="array">Arrays</option>
+    <option value="comments">Comments</option>
+    <option value="mixed">Mixed Inline + Block</option>
+  </select>
+  <button onclick="copyOutput()">Copy JSON</button>
+  <button class="primary" onclick="formatYAN()">Format YAN</button>
+  <span class="status ok" id="status">Ready</span>
+</div>
+
+<main>
+  <div class="pane">
+    <div class="pane-label">Input <span>.yan</span></div>
+    <div class="editor-wrap">
+      <div class="line-numbers" id="lineNumbers">1</div>
+      <textarea id="input" spellcheck="false" placeholder="# Type YAN here..."></textarea>
+    </div>
+  </div>
+  <div class="pane">
+    <div class="pane-label">Output <span>.json</span></div>
+    <div class="editor-wrap">
+      <pre id="output"><code id="code"></code></pre>
+      <div class="error-bar" id="errorBar"></div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  YAN v1.0 — <a href="https://github.com/yan-notation/yan-spec">github.com/yan-notation/yan-spec</a> — CC0 Public Domain
+</footer>
+
+<script>
+// ==================== YAN PARSER (Embedded) ====================
+
+class YANParser {
+  constructor(options = {}) {
+    this.strict = options.strict ?? false;
+  }
+
+  parse(source) {
+    const cleaned = this._preprocess(source);
+    const lines = this._splitLines(cleaned);
+    const { result } = this._parseBlock(lines, 0, -1);
+    return result;
+  }
+
+  stringify(obj, options = {}) {
+    const indent = options.indent ?? 2;
+    const level = options.level ?? 0;
+    const prefix = ' '.repeat(level * indent);
+
+    if (obj === null || obj === undefined) return 'null';
+    if (typeof obj === 'boolean') return obj ? 'true' : 'false';
+    if (typeof obj === 'number') return String(obj);
+    if (typeof obj === 'string') {
+      if (/[:;{}\[\]@"\n\r#\/\s]/.test(obj) || obj.trim() !== obj) {
+        return '"' + obj.replace(/"/g, '\\"') + '"';
+      }
+      return obj;
+    }
+    if (obj instanceof Date) return '@datetime ' + obj.toISOString();
+    if (Array.isArray(obj)) {
+      return obj.map(v => this.stringify(v, { indent, level: 0 })).join('; ');
+    }
+    if (typeof obj === 'object') {
+      const entries = Object.entries(obj);
+      if (entries.length === 0) return '{}';
+      const useInline = options.inline || (entries.length <= 2 && level > 0);
+      if (useInline) {
+        const pairs = entries.map(([k, v]) => `${k}: ${this.stringify(v, { indent, level: 0, inline: true })}`).join('; ');
+        return `{${pairs}}`;
+      }
+      const lines = [];
+      for (const [key, value] of entries) {
+        if (typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date)) {
+          const sub = this.stringify(value, { indent, level: level + 1 });
+          if (sub.startsWith('{')) {
+            lines.push(`${prefix}${key}: ${sub}`);
+          } else {
+            lines.push(`${prefix}${key}:`);
+            lines.push(sub);
+          }
+        } else {
+          lines.push(`${prefix}${key}: ${this.stringify(value, { indent, level: 0 })}`);
+        }
+      }
+      return lines.join('\n');
+    }
+    return String(obj);
+  }
+
+  _preprocess(source) {
+    let text = source.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    text = text.replace(/\/\*[\s\S]*?\*\//g, '');
+    text = text.replace(/#.*$/gm, '');
+    return text;
+  }
+
+  _splitLines(text) {
+    return text.split('\n')
+      .map((line, index) => {
+        const trimmed = line.replace(/\t/g, '  ');
+        const indent = trimmed.match(/^(\s*)/)[0].length;
+        const content = trimmed.trim();
+        return { line: index + 1, indent, content };
+      })
+      .filter(l => l.content.length > 0);
+  }
+
+  _parseBlock(lines, startIdx, baseIndent) {
+    const result = {};
+    let i = startIdx;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (line.indent <= baseIndent) break;
+      const colonIdx = line.content.indexOf(':');
+      if (colonIdx === -1) throw new Error(`Expected ':' on line ${line.line}: "${line.content}"`);
+      const key = line.content.substring(0, colonIdx).trim();
+      let rawValue = line.content.substring(colonIdx + 1).trim();
+      if (rawValue.startsWith('{')) {
+        const { value, nextIdx } = this._parseInlineObject(lines, i, rawValue);
+        result[key] = value;
+        i = nextIdx;
+        continue;
+      }
+      const nextLine = lines[i + 1];
+      if (nextLine && nextLine.indent > line.indent && !rawValue) {
+        const { result: blockValue, nextIdx } = this._parseBlock(lines, i + 1, line.indent);
+        result[key] = blockValue;
+        i = nextIdx;
+        continue;
+      }
+      result[key] = this._parseValue(rawValue, line.line);
+      i++;
+    }
+    return { result, nextIdx: i };
+  }
+
+  _parseInlineObject(lines, startIdx, rawValue) {
+    let braceCount = 0;
+    let content = '';
+    let i = startIdx;
+    while (i < lines.length) {
+      const line = lines[i];
+      const text = i === startIdx ? rawValue : line.content;
+      for (let k = 0; k < text.length; k++) {
+        const ch = text[k];
+        if (ch === '{') braceCount++;
+        else if (ch === '}') {
+          braceCount--;
+          if (braceCount === 0) {
+            content += text.substring(0, k);
+            const obj = this._parseInlinePairs(content.substring(1));
+            return { value: obj, nextIdx: i + 1 };
+          }
+        }
+      }
+      content += text + ' ';
+      i++;
+    }
+    throw new Error(`Unclosed '{' starting near line ${lines[startIdx].line}`);
+  }
+
+  _parseInlinePairs(text) {
+    const result = {};
+    const pairs = this._smartSplit(text, /[,;]/);
+    for (const pair of pairs) {
+      const trimmed = pair.trim();
+      if (!trimmed) continue;
+      const colonIdx = this._findKeyColon(trimmed);
+      if (colonIdx === -1) continue;
+      const key = trimmed.substring(0, colonIdx).trim();
+      const value = trimmed.substring(colonIdx + 1).trim();
+      result[key] = this._parseValue(value, 0);
+    }
+    return result;
+  }
+
+  _findKeyColon(text) {
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === '"' && !inQuotes) inQuotes = true;
+      else if (text[i] === '"' && inQuotes) inQuotes = false;
+      else if (text[i] === ':' && !inQuotes) return i;
+    }
+    return -1;
+  }
+
+  _smartSplit(text, delimiter) {
+    const parts = [];
+    let current = '';
+    let inQuotes = false;
+    let braceDepth = 0;
+    for (const ch of text) {
+      if (ch === '"' && !inQuotes) { inQuotes = true; current += ch; }
+      else if (ch === '"' && inQuotes) { inQuotes = false; current += ch; }
+      else if (ch === '{' && !inQuotes) { braceDepth++; current += ch; }
+      else if (ch === '}' && !inQuotes) { braceDepth--; current += ch; }
+      else if (delimiter.test(ch) && !inQuotes && braceDepth === 0) { parts.push(current); current = ''; }
+      else { current += ch; }
+    }
+    if (current.trim()) parts.push(current);
+    return parts;
+  }
+
+  _parseValue(raw, lineNum) {
+    const value = raw.trim();
+    if (value === '') return null;
+    if (value.startsWith('@')) return this._parseTypeHint(value, lineNum);
+    if (this._isArray(value)) return this._parseArray(value, lineNum);
+    if (value.startsWith('{')) return this._parseInlinePairs(value);
+    if (value.startsWith('"')) return this._parseString(value, lineNum);
+    const lower = value.toLowerCase();
+    if (['true', 'yes', 'on'].includes(lower)) return true;
+    if (['false', 'no', 'off'].includes(lower)) return false;
+    if (['null', 'nil', '_', '~'].includes(lower)) return null;
+    if (/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(value)) {
+      return value.includes('.') || /[eE]/.test(value) ? parseFloat(value) : parseInt(value, 10);
+    }
+    return value;
+  }
+
+  _isArray(text) {
+    let inQuotes = false;
+    for (const ch of text) { if (ch === '"') inQuotes = !inQuotes; else if (ch === ';' && !inQuotes) return true; }
+    return false;
+  }
+
+  _parseArray(text, lineNum) {
+    const items = this._smartSplit(text, /;/);
+    return items.map(item => this._parseValue(item.trim(), lineNum)).filter(v => v !== undefined);
+  }
+
+  _parseString(text, lineNum) {
+    if (!text.startsWith('"')) return text;
+    if (!text.endsWith('"')) throw new Error(`Unclosed string on line ${lineNum}: ${text}`);
+    return text.slice(1, -1).replace(/\\"/g, '"');
+  }
+
+  _parseTypeHint(text, lineNum) {
+    const spaceIdx = text.indexOf(' ');
+    const type = spaceIdx === -1 ? text.slice(1) : text.slice(1, spaceIdx);
+    const rawValue = spaceIdx === -1 ? '' : text.slice(spaceIdx + 1);
+    switch (type) {
+      case 'int': return parseInt(rawValue, 10);
+      case 'float': return parseFloat(rawValue);
+      case 'date': return { __type: 'date', __value: rawValue };
+      case 'datetime': return { __type: 'datetime', __value: rawValue };
+      case 'hex': return { __type: 'hex', __value: rawValue };
+      case 'base64': return { __type: 'base64', __value: rawValue };
+      case 'uuid': return { __type: 'uuid', __value: rawValue };
+      case 'url': return { __type: 'url', __value: rawValue };
+      case 'regex': return { __type: 'regex', __value: rawValue };
+      case 'bool': return ['true', 'yes', 'on', '1'].includes(rawValue.toLowerCase());
+      default: return { __type: type, __value: this._parseValue(rawValue, lineNum) };
+    }
+  }
+}
+
+// ==================== PLAYGROUND UI ====================
+
+const examples = {
+  config: `# Server configuration
+server:
+  host: 0.0.0.0
+  port: @int 8080
+  debug: off
+
+# Database settings
+database:
+  driver: postgresql
+  host: localhost
+  port: 5432
+  username: admin
+  password: "secret123!"
+  pool: {min: 5; max: 20}`,
+
+  user: `/*
+ * User profile
+ */
+user:
+  id: @uuid 550e8400-e29b-41d4-a716-446655440000
+  name: Budi Santoso
+  email: budi@example.com
+  active: yes
+  role: admin
+
+  profile:
+    bio: "Software engineer from Jakarta"
+    avatar: @url https://cdn.example.com/avatars/budi.png
+    joined: @datetime 2020-01-15T08:30:00Z
+
+  preferences:
+    theme: dark
+    notifications: {email: yes; push: no; sms: _}
+
+  tags: developer; backend; golang; yan`,
+
+  simple: `name: Budi
+age: 25
+active: true
+balance: null`,
+
+  nested: `a:
+  b:
+    c:
+      d:
+        e: deep value`,
+
+  types: `int_val: @int 42
+float_val: @float 3.14
+bool_val: @bool yes
+date_val: @date 2026-06-27
+datetime_val: @datetime 2026-06-27T13:00:00Z
+hex_val: @hex deadbeef
+uuid_val: @uuid 550e8400-e29b-41d4-a716-446655440000`,
+
+  array: `hobbies: makan; tidur; ngoding
+numbers: 1; 2; 3; 5; 8
+mixed: hello; 42; true; null`,
+
+  comments: `# Line comment
+name: Budi
+
+/* Block
+   comment */
+age: 25
+
+inline: value  # inline comment`,
+
+  mixed: `person:
+  name: Budi
+  address: {city: jakarta; country: indonesia}
+  hobbies: makan; tidur; ngoding
+
+  metadata:
+    created: @datetime 2026-06-27T12:00:00Z
+    tags: api; backend; v1`
+};
+
+const input = document.getElementById('input');
+const output = document.getElementById('code');
+const errorBar = document.getElementById('errorBar');
+const status = document.getElementById('status');
+const lineNumbers = document.getElementById('lineNumbers');
+const parser = new YANParser();
+
+function updateLineNumbers() {
+  const lines = input.value.split('\n').length;
+  lineNumbers.textContent = Array.from({length: lines}, (_, i) => i + 1).join('\n');
+}
+
+function syntaxHighlight(json) {
+  if (json === null) return '<span class="json-null">null</span>';
+  if (typeof json === 'boolean') return `<span class="json-bool">${json}</span>`;
+  if (typeof json === 'number') return `<span class="json-number">${json}</span>`;
+  if (typeof json === 'string') return `<span class="json-string">"${json.replace(/"/g, '\\"')}"</span>`;
+  if (Array.isArray(json)) {
+    if (json.length === 0) return '[]';
+    const items = json.map(v => '  ' + syntaxHighlight(v)).join(',\n');
+    return `[\n${items}\n]`;
+  }
+  if (typeof json === 'object') {
+    const entries = Object.entries(json);
+    if (entries.length === 0) return '{}';
+    const items = entries.map(([k, v]) => `  <span class="json-key">"${k}"</span>: ${syntaxHighlight(v)}`).join(',\n');
+    return `{\n${items}\n}`;
+  }
+  return String(json);
+}
+
+function parse() {
+  const src = input.value;
+  updateLineNumbers();
+
+  if (!src.trim()) {
+    output.innerHTML = '';
+    errorBar.classList.remove('show');
+    status.textContent = 'Ready';
+    status.className = 'status ok';
+    return;
+  }
+
+  try {
+    const result = parser.parse(src);
+    output.innerHTML = syntaxHighlight(result);
+    errorBar.classList.remove('show');
+    status.textContent = 'Valid YAN';
+    status.className = 'status ok';
+  } catch (e) {
+    output.innerHTML = '';
+    errorBar.textContent = e.message;
+    errorBar.classList.add('show');
+    status.textContent = 'Error';
+    status.className = 'status err';
+  }
+}
+
+function copyOutput() {
+  try {
+    const result = parser.parse(input.value);
+    navigator.clipboard.writeText(JSON.stringify(result, null, 2));
+    status.textContent = 'Copied!';
+    setTimeout(() => { status.textContent = 'Valid YAN'; }, 1500);
+  } catch (e) {
+    status.textContent = 'Nothing to copy';
+    status.className = 'status err';
+  }
+}
+
+function formatYAN() {
+  try {
+    const result = parser.parse(input.value);
+    input.value = parser.stringify(result);
+    parse();
+    status.textContent = 'Formatted';
+    setTimeout(() => { status.textContent = 'Valid YAN'; }, 1500);
+  } catch (e) {
+    status.textContent = 'Cannot format: invalid YAN';
+    status.className = 'status err';
+  }
+}
+
+document.getElementById('examples').addEventListener('change', (e) => {
+  input.value = examples[e.target.value] || '';
+  parse();
+});
+
+input.addEventListener('input', parse);
+input.addEventListener('scroll', () => {
+  lineNumbers.scrollTop = input.scrollTop;
+});
+
+// Init
+input.value = examples.config;
+parse();
+</script>
+
+</body>
+</html>

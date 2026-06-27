@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yan"
+version = "1.0.0"
+description = "YAN (Yet Another Notation) parser for Python"
+readme = "README.md"
+license = {text = "CC0-1.0"}
+keywords = ["yan", "parser", "config", "serialization"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: CC0 1.0 Universal (CC0 1.0) Public Domain Dedication",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+requires-python = ">=3.8"
+
+[project.urls]
+Homepage = "https://github.com/yan-notation/yan-spec"
+Repository = "https://github.com/yan-notation/yan-spec"
+
+[tool.setuptools.packages.find]
+where = ["src"]
