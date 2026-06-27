@@ -33,6 +33,18 @@ cd ../..
 
 echo ""
 
+# Build C implementation
+echo "Building C implementation..."
+make -C implementations/c >/dev/null 2>&1
+if [ -x implementations/c/yan ]; then
+    echo "  ✓ C build OK"
+else
+    echo "  ✗ C build FAILED"
+    FAILED=$((FAILED + 1))
+fi
+
+echo ""
+
 # Cross-language golden tests
 echo "Running cross-language golden tests..."
 for yan_file in tests/valid/**/*.yan; do
@@ -79,6 +91,27 @@ if (JSON.stringify(result) === JSON.stringify(expected)) {
     console.log('    Expected:', JSON.stringify(expected));
     process.exit(1);
 }
+" && PASSED=$((PASSED + 1)) || FAILED=$((FAILED + 1))
+
+    # Parse with C and compare
+    python3 -c "
+import sys, json, subprocess
+with open('$json_file') as f:
+    expected = json.load(f)
+result = subprocess.run(['./implementations/c/yan', '$yan_file'], capture_output=True, text=True)
+try:
+    actual = json.loads(result.stdout)
+except Exception as e:
+    print('    ✗ C PARSE ERROR:', e)
+    sys.exit(1)
+if actual == expected:
+    print('    ✓ C OK')
+    sys.exit(0)
+else:
+    print('    ✗ C MISMATCH')
+    print('    Got:', actual)
+    print('    Expected:', expected)
+    sys.exit(1)
 " && PASSED=$((PASSED + 1)) || FAILED=$((FAILED + 1))
 done
 

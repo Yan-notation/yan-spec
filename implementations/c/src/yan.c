@@ -307,7 +307,7 @@ static int yan_find_key_colon(const char *text) {
     return -1;
 }
 
-static char** yan_smart_split(const char *text, char delimiter, int *count) {
+static char** yan_smart_split(const char *text, const char *delimiters, int *count) {
     int capacity = YAN_INITIAL_CAPACITY;
     char **parts = yan_malloc(sizeof(char*) * capacity);
     *count = 0;
@@ -323,7 +323,7 @@ static char** yan_smart_split(const char *text, char delimiter, int *count) {
         else if (ch == '"' && in_quotes) { in_quotes = false; current[ci++] = ch; }
         else if (ch == '{' && !in_quotes) { brace_depth++; current[ci++] = ch; }
         else if (ch == '}' && !in_quotes) { brace_depth--; current[ci++] = ch; }
-        else if (ch == delimiter && !in_quotes && brace_depth == 0) {
+        else if (strchr(delimiters, ch) && !in_quotes && brace_depth == 0) {
             current[ci] = '\0';
             if (*count >= capacity) {
                 capacity *= 2;
@@ -409,7 +409,7 @@ static yan_value_t* yan_parse_value(const char *raw, int line_num, yan_error_t *
 
     if (yan_is_array(value)) {
         int count;
-        char **items = yan_smart_split(value, ';', &count);
+        char **items = yan_smart_split(value, ";", &count);
         yan_array_t *arr = yan_array_new();
         for (int i = 0; i < count; i++) {
             yan_value_t *item = yan_parse_value(items[i], line_num, error);
@@ -462,10 +462,25 @@ static yan_value_t* yan_parse_value(const char *raw, int line_num, yan_error_t *
 
     bool is_float = false;
     bool is_number = true;
+    int dot_count = 0, e_count = 0, digit_count = 0;
     for (int i = 0; value[i]; i++) {
-        if (value[i] == '.' || value[i] == 'e' || value[i] == 'E') is_float = true;
-        else if (!isdigit((unsigned char)value[i]) && !(i == 0 && value[i] == '-')) is_number = false;
+        char c = value[i];
+        if (c == '.') {
+            dot_count++;
+            is_float = true;
+        } else if (c == 'e' || c == 'E') {
+            e_count++;
+            is_float = true;
+        } else if (c == '-' || c == '+') {
+            // only valid at start, or right after 'e'/'E'
+            if (i != 0 && !(value[i-1] == 'e' || value[i-1] == 'E')) is_number = false;
+        } else if (isdigit((unsigned char)c)) {
+            digit_count++;
+        } else {
+            is_number = false;
+        }
     }
+    if (dot_count > 1 || e_count > 1 || digit_count == 0) is_number = false;
 
     if (is_number) {
         if (is_float) return yan_value_float(atof(value));
@@ -478,7 +493,7 @@ static yan_value_t* yan_parse_value(const char *raw, int line_num, yan_error_t *
 static yan_object_t* yan_parse_inline_pairs(const char *text, yan_error_t **error) {
     yan_object_t *obj = yan_object_new();
     int count;
-    char **pairs = yan_smart_split(text, ';', &count);
+    char **pairs = yan_smart_split(text, ";,", &count);
 
     for (int i = 0; i < count; i++) {
         char *trimmed = pairs[i];
@@ -693,6 +708,44 @@ void yan_print_value(yan_value_t *value, int indent) {
 // ==================== MAIN ====================
 
 int main(int argc, char **argv) {
+    if (argc > 1) {
+        // CLI mode: read .yan file from argv[1], print parsed JSON
+        FILE *fp = fopen(argv[1], "rb");
+        if (!fp) {
+            fprintf(stderr, "Error: cannot open file '%s'\n", argv[1]);
+            return 1;
+        }
+
+        fseek(fp, 0, SEEK_END);
+        long fsize = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+
+        char *buf = malloc((size_t)fsize + 1);
+        if (!buf) {
+            fprintf(stderr, "Error: out of memory\n");
+            fclose(fp);
+            return 1;
+        }
+        size_t read_n = fread(buf, 1, (size_t)fsize, fp);
+        buf[read_n] = '\0';
+        fclose(fp);
+
+        yan_error_t *error = NULL;
+        yan_object_t *result = yan_parse(buf, &error);
+
+        if (error) {
+            fprintf(stderr, "Error at line %d: %s\n", error->line, error->message);
+            free(buf);
+            return 1;
+        }
+
+        yan_print_object(result, 0);
+        printf("\n");
+        free(buf);
+        return 0;
+    }
+
+    // Default mode: built-in demo
     const char *test = 
         "# Server config\n"
         "server:\n"
