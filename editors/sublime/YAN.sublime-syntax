@@ -1,0 +1,74 @@
+%YAML 1.2
+---
+name: YAN
+file_extensions:
+  - yan
+scope: source.yan
+
+contexts:
+  main:
+    - include: comments
+    - include: type-hints
+    - include: strings
+    - include: numbers
+    - include: constants
+    - include: keys
+    - include: braces
+
+  comments:
+    - match: '#.*$'
+      scope: comment.line.number-sign.yan
+    - match: '/\*'
+      scope: punctuation.definition.comment.yan
+      push:
+        - meta_scope: comment.block.yan
+        - match: '\*/'
+          pop: true
+
+  type-hints:
+    - match: '@(int|float|bool|date|datetime|hex|base64|uuid|url|regex|bigint|email|ipv4|ipv6|color|duration)\b'
+      scope: storage.type.yan
+
+  strings:
+    - match: '"'
+      scope: punctuation.definition.string.begin.yan
+      push:
+        - meta_scope: string.quoted.double.yan
+        - match: '\\.'
+          scope: constant.character.escape.yan
+        - match: '"'
+          scope: punctuation.definition.string.end.yan
+          pop: true
+    - match: "'"
+      scope: punctuation.definition.string.begin.yan
+      push:
+        - meta_scope: string.quoted.single.yan
+        - match: '\\.'
+          scope: constant.character.escape.yan
+        - match: "'"
+          scope: punctuation.definition.string.end.yan
+          pop: true
+
+  numbers:
+    - match: '(?<![\w.])-?\d+(\.\d+)?([eE][+-]?\d+)?(?![\w.])'
+      scope: constant.numeric.yan
+
+  constants:
+    - match: '\b(true|false|yes|no|on|off)\b'
+      scope: constant.language.boolean.yan
+    - match: '\b(null|nil|Nil)\b'
+      scope: constant.language.null.yan
+    - match: '(?<=[\s:{;,])_(?=[\s};,]|$)'
+      scope: constant.language.null.yan
+
+  keys:
+    - match: '^\s*([A-Za-z_][A-Za-z0-9_-]*)\s*(?=:)'
+      scope: entity.name.tag.yan
+    - match: '(?<=[{;,]\s*)([A-Za-z_][A-Za-z0-9_-]*)\s*(?=:)'
+      scope: entity.name.tag.yan
+
+  braces:
+    - match: '[{}]'
+      scope: punctuation.section.block.yan
+    - match: '[;,:]'
+      scope: punctuation.separator.yan
