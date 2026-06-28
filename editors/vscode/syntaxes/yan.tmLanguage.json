@@ -1,0 +1,102 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "YAN",
+  "scopeName": "source.yan",
+  "fileTypes": ["yan"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#type-hints" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#constants" },
+    { "include": "#keys" },
+    { "include": "#braces" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.yan",
+          "match": "#.*$"
+        },
+        {
+          "name": "comment.block.yan",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "type-hints": {
+      "patterns": [
+        {
+          "name": "storage.type.yan",
+          "match": "@(int|float|bool|date|datetime|hex|base64|uuid|url|regex|bigint|email|ipv4|ipv6|color|duration)\\b"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.yan",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            { "name": "constant.character.escape.yan", "match": "\\\\." }
+          ]
+        },
+        {
+          "name": "string.quoted.single.yan",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            { "name": "constant.character.escape.yan", "match": "\\\\." }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.yan",
+          "match": "(?<![\\w.])-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?(?![\\w.])"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.yan",
+          "match": "\\b(true|false|yes|no|on|off)\\b"
+        },
+        {
+          "name": "constant.language.null.yan",
+          "match": "\\b(null|nil|Nil)\\b|(?<=[\\s:{;,])_(?=[\\s};,]|$)"
+        }
+      ]
+    },
+    "keys": {
+      "patterns": [
+        {
+          "name": "entity.name.tag.yan",
+          "match": "^\\s*([A-Za-z_][A-Za-z0-9_-]*)\\s*(?=:)"
+        },
+        {
+          "name": "entity.name.tag.yan",
+          "match": "(?<=[{;,]\\s*)([A-Za-z_][A-Za-z0-9_-]*)\\s*(?=:)"
+        }
+      ]
+    },
+    "braces": {
+      "patterns": [
+        {
+          "name": "punctuation.section.block.yan",
+          "match": "[{}]"
+        },
+        {
+          "name": "punctuation.separator.yan",
+          "match": "[;,:]"
+        }
+      ]
+    }
+  }
+}

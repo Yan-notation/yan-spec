@@ -1,0 +1,43 @@
+{
+  "name": "yan-notation",
+  "displayName": "YAN Language Support",
+  "description": "Syntax highlighting and file icon for YAN (Yet Another Notation) .yan files",
+  "version": "1.0.0",
+  "publisher": "yan-notation",
+  "license": "CC0-1.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yan-notation/yan-spec.git",
+    "directory": "editors/vscode"
+  },
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": ["Programming Languages"],
+  "keywords": ["yan", "yet another notation", "config", "serialization"],
+  "icon": "icons/yan-file-icon.png",
+  "contributes": {
+    "languages": [
+      {
+        "id": "yan",
+        "aliases": ["YAN", "yan"],
+        "extensions": [".yan"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "yan",
+        "scopeName": "source.yan",
+        "path": "./syntaxes/yan.tmLanguage.json"
+      }
+    ],
+    "iconThemes": [
+      {
+        "id": "yan-icon-theme",
+        "label": "YAN File Icon",
+        "path": "./themes/yan-icon-theme.json"
+      }
+    ]
+  }
+}

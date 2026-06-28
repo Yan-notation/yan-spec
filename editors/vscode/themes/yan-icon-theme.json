@@ -1,0 +1,11 @@
+{
+  "iconDefinitions": {
+    "yan-file-icon": {
+      "iconPath": "../icons/yan-file-icon.png"
+    }
+  },
+  "fileExtensions": {
+    "yan": "yan-file-icon"
+  },
+  "hidesExplorerArrows": false
+}
