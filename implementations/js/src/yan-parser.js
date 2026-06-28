@@ -100,14 +100,58 @@ class YANParser {
 
   _preprocess(source) {
     let text = source.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    return this._stripComments(text);
+  }
 
-    // Remove block comments /* */
-    text = text.replace(/\/\*[\s\S]*?\*\//g, '');
+  /**
+   * Strip '#' line comments and '/* *\/' block comments while ignoring
+   * both inside single/double-quoted strings (so values like @color
+   * "#ff0080" are not mistaken for the start of a comment).
+   */
+  _stripComments(text) {
+    let result = '';
+    let i = 0;
+    let inQuote = null;
 
-    // Remove line comments #
-    text = text.replace(/#.*$/gm, '');
+    while (i < text.length) {
+      const ch = text[i];
 
-    return text;
+      if (inQuote) {
+        result += ch;
+        if (ch === '\\' && i + 1 < text.length) {
+          result += text[i + 1];
+          i += 2;
+          continue;
+        }
+        if (ch === inQuote) inQuote = null;
+        i++;
+        continue;
+      }
+
+      if (ch === '"' || ch === "'") {
+        inQuote = ch;
+        result += ch;
+        i++;
+        continue;
+      }
+
+      if (ch === '#') {
+        const eol = text.indexOf('\n', i);
+        i = eol === -1 ? text.length : eol;
+        continue;
+      }
+
+      if (ch === '/' && text[i + 1] === '*') {
+        const close = text.indexOf('*/', i + 2);
+        i = close === -1 ? text.length : close + 2;
+        continue;
+      }
+
+      result += ch;
+      i++;
+    }
+
+    return result;
   }
 
   _splitLines(text) {
@@ -342,6 +386,49 @@ class YANParser {
         return { __type: 'url', __value: rawValue };
       case 'regex':
         return new RegExp(rawValue);
+      case 'bigint': {
+        if (!/^-?\d+$/.test(rawValue)) {
+          throw new YANParseError(`Invalid @bigint value on line ${lineNum}: "${rawValue}"`);
+        }
+        return { __type: 'bigint', __value: BigInt(rawValue).toString() };
+      }
+      case 'email': {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawValue)) {
+          throw new YANParseError(`Invalid @email value on line ${lineNum}: "${rawValue}"`);
+        }
+        return { __type: 'email', __value: rawValue };
+      }
+      case 'ipv4': {
+        const octets = rawValue.split('.');
+        const valid = octets.length === 4 && octets.every(o => /^\d{1,3}$/.test(o) && Number(o) <= 255);
+        if (!valid) {
+          throw new YANParseError(`Invalid @ipv4 value on line ${lineNum}: "${rawValue}"`);
+        }
+        return { __type: 'ipv4', __value: rawValue };
+      }
+      case 'ipv6': {
+        if (!/^[0-9a-fA-F:]+$/.test(rawValue) || !rawValue.includes(':')) {
+          throw new YANParseError(`Invalid @ipv6 value on line ${lineNum}: "${rawValue}"`);
+        }
+        return { __type: 'ipv6', __value: rawValue };
+      }
+      case 'color': {
+        let colorValue = rawValue.trim();
+        if ((colorValue.startsWith('"') && colorValue.endsWith('"')) ||
+            (colorValue.startsWith("'") && colorValue.endsWith("'"))) {
+          colorValue = colorValue.slice(1, -1);
+        }
+        if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(colorValue)) {
+          throw new YANParseError(`Invalid @color value on line ${lineNum}: "${rawValue}" (note: hex colors must be quoted, e.g. @color "#ff0080", since unquoted '#' starts a comment)`);
+        }
+        return { __type: 'color', __value: colorValue };
+      }
+      case 'duration': {
+        if (!/^-?(\d+(\.\d+)?(d|h|m|s|ms))+$/.test(rawValue)) {
+          throw new YANParseError(`Invalid @duration value on line ${lineNum}: "${rawValue}"`);
+        }
+        return { __type: 'duration', __value: rawValue };
+      }
       default:
         return { __type: type, __value: this._parseValue(rawValue, lineNum) };
     }

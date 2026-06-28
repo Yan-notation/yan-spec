@@ -3,6 +3,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #define YAN_MAX_KEY_LEN 256
 #define YAN_MAX_VALUE_LEN 4096
@@ -230,8 +231,23 @@ static char* yan_preprocess(const char *source) {
     size_t fj = 0;
     char *line = strtok(result, "\n");
     while (line) {
-        char *hash = strchr(line, '#');
-        if (hash) *hash = '\0';
+        bool in_quote = false;
+        char quote_ch = 0;
+        size_t hash_pos = SIZE_MAX;
+        for (size_t k = 0; line[k]; k++) {
+            char c = line[k];
+            if (in_quote) {
+                if (c == '\\' && line[k + 1]) { k++; continue; }
+                if (c == quote_ch) in_quote = false;
+            } else if (c == '"' || c == '\'') {
+                in_quote = true;
+                quote_ch = c;
+            } else if (c == '#') {
+                hash_pos = k;
+                break;
+            }
+        }
+        if (hash_pos != SIZE_MAX) line[hash_pos] = '\0';
         size_t llen = strlen(line);
         memcpy(final + fj, line, llen);
         fj += llen;
@@ -401,6 +417,89 @@ static yan_value_t* yan_parse_value(const char *raw, int line_num, yan_error_t *
             for (int i = 0; raw_value[i] && i < 15; i++) lower[i] = tolower((unsigned char)raw_value[i]);
             lower[strlen(raw_value)] = '\0';
             return yan_value_bool(strcmp(lower, "true") == 0 || strcmp(lower, "yes") == 0 || strcmp(lower, "on") == 0);
+        } else if (strcmp(type_name, "bigint") == 0) {
+            const char *p = raw_value;
+            if (*p == '-') p++;
+            if (!*p) { fprintf(stderr, "Invalid @bigint value: \"%s\"\n", raw_value); return yan_value_null(); }
+            for (; *p; p++) if (!isdigit((unsigned char)*p)) {
+                fprintf(stderr, "Invalid @bigint value: \"%s\"\n", raw_value);
+                return yan_value_null();
+            }
+            yan_value_t *inner = yan_value_string(raw_value);
+            return yan_value_type_hint("bigint", inner);
+        } else if (strcmp(type_name, "email") == 0) {
+            const char *at = strchr(raw_value, '@');
+            const char *dot = at ? strrchr(at, '.') : NULL;
+            if (!at || at == raw_value || !dot || dot == at + 1 || !*(dot + 1)) {
+                fprintf(stderr, "Invalid @email value: \"%s\"\n", raw_value);
+                return yan_value_null();
+            }
+            yan_value_t *inner = yan_value_string(raw_value);
+            return yan_value_type_hint("email", inner);
+        } else if (strcmp(type_name, "ipv4") == 0) {
+            int parts = 0, val = -1, ok = 1;
+            char buf[YAN_MAX_VALUE_LEN];
+            strcpy(buf, raw_value);
+            char *tok = strtok(buf, ".");
+            while (tok) {
+                parts++;
+                for (char *c = tok; *c; c++) if (!isdigit((unsigned char)*c)) ok = 0;
+                val = atoi(tok);
+                if (val < 0 || val > 255) ok = 0;
+                tok = strtok(NULL, ".");
+            }
+            if (parts != 4 || !ok) {
+                fprintf(stderr, "Invalid @ipv4 value: \"%s\"\n", raw_value);
+                return yan_value_null();
+            }
+            yan_value_t *inner = yan_value_string(raw_value);
+            return yan_value_type_hint("ipv4", inner);
+        } else if (strcmp(type_name, "ipv6") == 0) {
+            int has_colon = 0, ok = 1;
+            for (const char *c = raw_value; *c; c++) {
+                if (*c == ':') has_colon = 1;
+                else if (!isxdigit((unsigned char)*c)) ok = 0;
+            }
+            if (!has_colon || !ok || raw_value[0] == '\0') {
+                fprintf(stderr, "Invalid @ipv6 value: \"%s\"\n", raw_value);
+                return yan_value_null();
+            }
+            yan_value_t *inner = yan_value_string(raw_value);
+            return yan_value_type_hint("ipv6", inner);
+        } else if (strcmp(type_name, "color") == 0) {
+            char *cv = raw_value;
+            size_t clen = strlen(cv);
+            if (clen >= 2 && (cv[0] == '"' || cv[0] == '\'') && cv[clen - 1] == cv[0]) {
+                cv[clen - 1] = '\0';
+                cv++;
+                clen -= 2;
+            }
+            int ok = (clen == 4 || clen == 7 || clen == 9) && cv[0] == '#';
+            if (ok) for (size_t i = 1; i < clen; i++) if (!isxdigit((unsigned char)cv[i])) ok = 0;
+            if (!ok) {
+                fprintf(stderr, "Invalid @color value: \"%s\" (hex colors must be quoted, e.g. @color \"#ff0080\")\n", raw_value);
+                return yan_value_null();
+            }
+            yan_value_t *inner = yan_value_string(cv);
+            return yan_value_type_hint("color", inner);
+        } else if (strcmp(type_name, "duration") == 0) {
+            const char *p = raw_value;
+            if (*p == '-') p++;
+            int ok = *p != '\0';
+            while (*p) {
+                if (!isdigit((unsigned char)*p)) { ok = 0; break; }
+                while (isdigit((unsigned char)*p)) p++;
+                if (*p == '.') { p++; if (!isdigit((unsigned char)*p)) { ok = 0; break; } while (isdigit((unsigned char)*p)) p++; }
+                if (*p == 'm' && *(p + 1) == 's') p += 2;
+                else if (*p == 'd' || *p == 'h' || *p == 'm' || *p == 's') p++;
+                else { ok = 0; break; }
+            }
+            if (!ok) {
+                fprintf(stderr, "Invalid @duration value: \"%s\"\n", raw_value);
+                return yan_value_null();
+            }
+            yan_value_t *inner = yan_value_string(raw_value);
+            return yan_value_type_hint("duration", inner);
         } else {
             yan_value_t *inner = yan_value_string(raw_value);
             return yan_value_type_hint(type_name, inner);

@@ -234,8 +234,19 @@ hash: @hex a1b2c3d4
 | `@url` | URL | `@url https://example.com` |
 | `@regex` | Regular expression | `@regex [a-z]+` |
 | `@bool` | Explicit boolean | `@bool yes` |
+| `@bigint` | Arbitrary-precision integer | `@bigint 123456789012345678901234567890` |
+| `@email` | Email address | `@email budi@example.com` |
+| `@ipv4` | IPv4 address | `@ipv4 192.168.1.1` |
+| `@ipv6` | IPv6 address | `@ipv6 2001:db8::1` |
+| `@color` | Hex color code | `@color "#ff0080"` |
+| `@duration` | Duration (e.g. `1d`, `2h30m`, `500ms`) | `@duration 1h30m` |
 
 Parsers SHOULD support all core type hints. Parsers MAY support additional type hints.
+
+> **Note:** `@color` values MUST be quoted (e.g. `@color "#ff0080"`), since
+> an unquoted `#` begins a line comment (see §3.x Comments). Conformant
+> parsers MUST be quote-aware when stripping comments, so that a `#`
+> inside a quoted string is never treated as the start of a comment.
 
 ---
 

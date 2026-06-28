@@ -42,32 +42,64 @@ impl YANParser {
 
     fn preprocess(&self, source: &str) -> String {
         let text = source.replace("\r\n", "\n").replace('\r', "\n");
+        self.strip_comments(&text)
+    }
+
+    /// Strip '#' line comments and '/* */' block comments while ignoring
+    /// both inside single/double-quoted strings (so values like
+    /// @color "#ff0080" are not mistaken for a comment start).
+    fn strip_comments(&self, text: &str) -> String {
+        let chars: Vec<char> = text.chars().collect();
+        let n = chars.len();
         let mut result = String::new();
-        let mut chars = text.chars().peekable();
-        while let Some(ch) = chars.next() {
-            if ch == '/' && chars.peek() == Some(&'*') {
-                chars.next();
-                loop {
-                    match chars.next() {
-                        Some('*') if chars.peek() == Some(&'/') => { chars.next(); break; }
-                        None => break,
-                        _ => {}
-                    }
-                }
-            } else {
+        let mut i = 0;
+        let mut in_quote: Option<char> = None;
+
+        while i < n {
+            let ch = chars[i];
+
+            if let Some(q) = in_quote {
                 result.push(ch);
+                if ch == '\\' && i + 1 < n {
+                    result.push(chars[i + 1]);
+                    i += 2;
+                    continue;
+                }
+                if ch == q {
+                    in_quote = None;
+                }
+                i += 1;
+                continue;
             }
-        }
-        let mut final_result = String::new();
-        for line in result.lines() {
-            if let Some(idx) = line.find('#') {
-                final_result.push_str(&line[..idx]);
-            } else {
-                final_result.push_str(line);
+
+            if ch == '"' || ch == '\'' {
+                in_quote = Some(ch);
+                result.push(ch);
+                i += 1;
+                continue;
             }
-            final_result.push('\n');
+
+            if ch == '#' {
+                while i < n && chars[i] != '\n' {
+                    i += 1;
+                }
+                continue;
+            }
+
+            if ch == '/' && i + 1 < n && chars[i + 1] == '*' {
+                i += 2;
+                while i + 1 < n && !(chars[i] == '*' && chars[i + 1] == '/') {
+                    i += 1;
+                }
+                i = (i + 2).min(n);
+                continue;
+            }
+
+            result.push(ch);
+            i += 1;
         }
-        final_result
+
+        result
     }
 
     fn split_lines(&self, text: &str) -> Vec<Line> {
@@ -300,6 +332,129 @@ impl YANParser {
                     value: Box::new(YANValue::String(raw_value.to_string())),
                 }
             }
+            "bigint" => {
+                if raw_value.trim_start_matches('-').is_empty()
+                    || !raw_value.trim_start_matches('-').chars().all(|c| c.is_ascii_digit())
+                {
+                    return Err(YANParseError {
+                        message: format!("Invalid @bigint value on line {}: \"{}\"", line_num, raw_value),
+                        line: line_num,
+                    });
+                }
+                YANValue::TypeHint {
+                    type_name: "bigint".to_string(),
+                    value: Box::new(YANValue::String(raw_value.to_string())),
+                }
+            }
+            "email" => {
+                let valid = match raw_value.find('@') {
+                    Some(at) if at > 0 => {
+                        let domain = &raw_value[at + 1..];
+                        domain.contains('.') && !domain.starts_with('.') && !domain.ends_with('.')
+                    }
+                    _ => false,
+                };
+                if !valid {
+                    return Err(YANParseError {
+                        message: format!("Invalid @email value on line {}: \"{}\"", line_num, raw_value),
+                        line: line_num,
+                    });
+                }
+                YANValue::TypeHint {
+                    type_name: "email".to_string(),
+                    value: Box::new(YANValue::String(raw_value.to_string())),
+                }
+            }
+            "ipv4" => {
+                let parts: Vec<&str> = raw_value.split('.').collect();
+                let valid = parts.len() == 4
+                    && parts.iter().all(|p| {
+                        !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()) && p.parse::<u32>().map(|n| n <= 255).unwrap_or(false)
+                    });
+                if !valid {
+                    return Err(YANParseError {
+                        message: format!("Invalid @ipv4 value on line {}: \"{}\"", line_num, raw_value),
+                        line: line_num,
+                    });
+                }
+                YANValue::TypeHint {
+                    type_name: "ipv4".to_string(),
+                    value: Box::new(YANValue::String(raw_value.to_string())),
+                }
+            }
+            "ipv6" => {
+                let valid = raw_value.contains(':')
+                    && !raw_value.is_empty()
+                    && raw_value.chars().all(|c| c.is_ascii_hexdigit() || c == ':');
+                if !valid {
+                    return Err(YANParseError {
+                        message: format!("Invalid @ipv6 value on line {}: \"{}\"", line_num, raw_value),
+                        line: line_num,
+                    });
+                }
+                YANValue::TypeHint {
+                    type_name: "ipv6".to_string(),
+                    value: Box::new(YANValue::String(raw_value.to_string())),
+                }
+            }
+            "color" => {
+                let mut cv = raw_value.trim();
+                if cv.len() >= 2 {
+                    let first = cv.chars().next().unwrap();
+                    let last = cv.chars().last().unwrap();
+                    if (first == '"' || first == '\'') && first == last {
+                        cv = &cv[1..cv.len() - 1];
+                    }
+                }
+                let valid = cv.starts_with('#')
+                    && matches!(cv.len() - 1, 3 | 6 | 8)
+                    && cv[1..].chars().all(|c| c.is_ascii_hexdigit());
+                if !valid {
+                    return Err(YANParseError {
+                        message: format!(
+                            "Invalid @color value on line {}: \"{}\" (note: hex colors must be quoted, e.g. @color \"#ff0080\", since unquoted '#' starts a comment)",
+                            line_num, raw_value
+                        ),
+                        line: line_num,
+                    });
+                }
+                YANValue::TypeHint {
+                    type_name: "color".to_string(),
+                    value: Box::new(YANValue::String(cv.to_string())),
+                }
+            }
+            "duration" => {
+                let mut s = raw_value.strip_prefix('-').unwrap_or(raw_value);
+                let mut valid = !s.is_empty();
+                while valid && !s.is_empty() {
+                    let digit_start = s.len();
+                    while s.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+                        s = &s[1..];
+                    }
+                    if s.len() == digit_start { valid = false; break; }
+                    if s.starts_with('.') {
+                        s = &s[1..];
+                        let frac_start = s.len();
+                        while s.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+                            s = &s[1..];
+                        }
+                        if s.len() == frac_start { valid = false; break; }
+                    }
+                    if s.starts_with("ms") { s = &s[2..]; }
+                    else if s.starts_with(['d', 'h', 'm', 's']) { s = &s[1..]; }
+                    else { valid = false; break; }
+                }
+                if !valid {
+                    return Err(YANParseError {
+                        message: format!("Invalid @duration value on line {}: \"{}\"", line_num, raw_value),
+                        line: line_num,
+                    });
+                }
+                YANValue::TypeHint {
+                    type_name: "duration".to_string(),
+                    value: Box::new(YANValue::String(raw_value.to_string())),
+                }
+            }
             _ => YANValue::TypeHint {
                 type_name: type_name.to_string(),
                 value: Box::new(self.parse_value(raw_value, line_num)?),
@@ -397,3 +552,4 @@ mod tests {
         assert_eq!(result.get("n"), Some(&YANValue::Int(42)));
     }
 }
+

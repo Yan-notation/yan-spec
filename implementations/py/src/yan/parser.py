@@ -80,11 +80,51 @@ class YANParser:
 
     def _preprocess(self, source: str) -> str:
         text = source.replace("\r\n", "\n").replace("\r", "\n")
-        # Remove block comments
-        text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
-        # Remove line comments
-        text = re.sub(r'#.*$', '', text, flags=re.MULTILINE)
-        return text
+        return self._strip_comments(text)
+
+    def _strip_comments(self, text: str) -> str:
+        """Strip '#' line comments and '/* */' block comments while
+        ignoring both inside single/double-quoted strings (so values
+        like @color "#ff0080" are not mistaken for a comment start)."""
+        result = []
+        i = 0
+        n = len(text)
+        in_quote = None
+
+        while i < n:
+            ch = text[i]
+
+            if in_quote:
+                result.append(ch)
+                if ch == '\\' and i + 1 < n:
+                    result.append(text[i + 1])
+                    i += 2
+                    continue
+                if ch == in_quote:
+                    in_quote = None
+                i += 1
+                continue
+
+            if ch in ('"', "'"):
+                in_quote = ch
+                result.append(ch)
+                i += 1
+                continue
+
+            if ch == '#':
+                eol = text.find('\n', i)
+                i = n if eol == -1 else eol
+                continue
+
+            if ch == '/' and i + 1 < n and text[i + 1] == '*':
+                close = text.find('*/', i + 2)
+                i = n if close == -1 else close + 2
+                continue
+
+            result.append(ch)
+            i += 1
+
+        return ''.join(result)
 
     def _split_lines(self, text: str) -> List[dict]:
         lines = []
@@ -291,9 +331,59 @@ class YANParser:
             "url": lambda v: {"__type": "url", "__value": v},
             "regex": lambda v: {"__type": "regex", "__value": v},
             "bool": lambda v: v.lower() in ("true", "yes", "on", "1"),
+            "bigint": self._handle_bigint,
+            "email": self._handle_email,
+            "ipv4": self._handle_ipv4,
+            "ipv6": self._handle_ipv6,
+            "color": lambda v: self._handle_color(v, line_num),
+            "duration": lambda v: self._handle_duration(v, line_num),
         }
 
         if type_name in handlers:
-            return handlers[type_name](raw_value)
+            try:
+                return handlers[type_name](raw_value)
+            except YANParseError:
+                raise
+            except (ValueError, TypeError) as e:
+                raise YANParseError(f"Invalid @{type_name} value on line {line_num}: \"{raw_value}\"") from e
 
         return {"__type": type_name, "__value": self._parse_value(raw_value, line_num)}
+
+    def _handle_bigint(self, v: str) -> dict:
+        if not re.match(r'^-?\d+$', v):
+            raise ValueError(f"not an integer: {v}")
+        return {"__type": "bigint", "__value": str(int(v))}
+
+    def _handle_email(self, v: str) -> dict:
+        if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]+$', v):
+            raise ValueError(f"not a valid email: {v}")
+        return {"__type": "email", "__value": v}
+
+    def _handle_ipv4(self, v: str) -> dict:
+        octets = v.split(".")
+        if len(octets) != 4 or not all(o.isdigit() and 0 <= int(o) <= 255 for o in octets):
+            raise ValueError(f"not a valid IPv4 address: {v}")
+        return {"__type": "ipv4", "__value": v}
+
+    def _handle_ipv6(self, v: str) -> dict:
+        if ":" not in v or not re.match(r'^[0-9a-fA-F:]+$', v):
+            raise ValueError(f"not a valid IPv6 address: {v}")
+        return {"__type": "ipv6", "__value": v}
+
+    def _handle_color(self, v: str, line_num: int) -> dict:
+        color_value = v.strip()
+        if (color_value.startswith('"') and color_value.endswith('"')) or \
+           (color_value.startswith("'") and color_value.endswith("'")):
+            color_value = color_value[1:-1]
+        if not re.match(r'^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$', color_value):
+            raise YANParseError(
+                f"Invalid @color value on line {line_num}: \"{v}\" "
+                f"(note: hex colors must be quoted, e.g. @color \"#ff0080\", "
+                f"since unquoted '#' starts a comment)"
+            )
+        return {"__type": "color", "__value": color_value}
+
+    def _handle_duration(self, v: str, line_num: int) -> dict:
+        if not re.match(r'^-?(\d+(\.\d+)?(d|h|m|s|ms))+$', v):
+            raise YANParseError(f"Invalid @duration value on line {line_num}: \"{v}\"")
+        return {"__type": "duration", "__value": v}
