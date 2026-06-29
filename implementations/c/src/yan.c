@@ -367,11 +367,45 @@ static char** yan_smart_split(const char *text, const char *delimiters, int *cou
 
 static bool yan_is_array(const char *text) {
     bool in_quotes = false;
+    int brace_depth = 0;
     for (int i = 0; text[i]; i++) {
         if (text[i] == '"') in_quotes = !in_quotes;
-        else if (text[i] == ';' && !in_quotes) return true;
+        else if (text[i] == '{' && !in_quotes) brace_depth++;
+        else if (text[i] == '}' && !in_quotes) brace_depth--;
+        else if (text[i] == ';' && !in_quotes && brace_depth == 0) return true;
     }
     return false;
+}
+
+static bool yan_has_top_level_colon(const char *text) {
+    bool in_quotes = false;
+    int brace_depth = 0;
+    for (int i = 0; text[i]; i++) {
+        char c = text[i];
+        if (c == '"') in_quotes = !in_quotes;
+        else if (c == '{' && !in_quotes) brace_depth++;
+        else if (c == '}' && !in_quotes) brace_depth--;
+        else if (c == ':' && !in_quotes && brace_depth == 0) return true;
+    }
+    return false;
+}
+
+/* A `{ ... }` block is an array if none of its top-level, comma/semicolon
+ * separated items has a top-level `key:` colon. */
+static bool yan_is_inline_array(const char *text) {
+    int count;
+    char **items = yan_smart_split(text, ";,", &count);
+    bool is_array = true;
+    for (int i = 0; i < count; i++) {
+        char *trimmed = items[i];
+        while (isspace((unsigned char)*trimmed)) trimmed++;
+        if (*trimmed && yan_has_top_level_colon(trimmed)) {
+            is_array = false;
+        }
+        free(items[i]);
+    }
+    free(items);
+    return is_array;
 }
 
 static yan_object_t* yan_parse_inline_pairs(const char *text, yan_error_t **error);
@@ -525,6 +559,18 @@ static yan_value_t* yan_parse_value(const char *raw, int line_num, yan_error_t *
             char inner[YAN_MAX_VALUE_LEN];
             memcpy(inner, value + 1, len - 2);
             inner[len - 2] = '\0';
+            if (yan_is_inline_array(inner)) {
+                int count;
+                char **items = yan_smart_split(inner, ";", &count);
+                yan_array_t *arr = yan_array_new();
+                for (int i = 0; i < count; i++) {
+                    yan_value_t *item = yan_parse_value(items[i], line_num, error);
+                    yan_array_push(arr, item);
+                    free(items[i]);
+                }
+                free(items);
+                return yan_value_array(arr);
+            }
             yan_object_t *obj = yan_parse_inline_pairs(inner, error);
             return yan_value_object(obj);
         }
@@ -648,8 +694,20 @@ static yan_value_t* yan_parse_inline_object_lines(yan_line_t *lines, int start, 
                         memcpy(content + ci, text, k);
                         content[ci + k] = '\0';
                     }
-                    yan_object_t *obj = yan_parse_inline_pairs(content + 1, error);
                     *end = i + 1;
+                    if (yan_is_inline_array(content + 1)) {
+                        int count;
+                        char **items = yan_smart_split(content + 1, ";", &count);
+                        yan_array_t *arr = yan_array_new();
+                        for (int m = 0; m < count; m++) {
+                            yan_value_t *item = yan_parse_value(items[m], lines[i].line, error);
+                            yan_array_push(arr, item);
+                            free(items[m]);
+                        }
+                        free(items);
+                        return yan_value_array(arr);
+                    }
+                    yan_object_t *obj = yan_parse_inline_pairs(content + 1, error);
                     return yan_value_object(obj);
                 }
             }

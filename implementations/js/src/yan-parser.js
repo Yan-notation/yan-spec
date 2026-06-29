@@ -217,7 +217,6 @@ class YANParser {
     let braceCount = 0;
     let content = '';
     let i = startIdx;
-    let j = 0;
 
     // Collect all text until matching }
     while (i < lines.length) {
@@ -231,9 +230,11 @@ class YANParser {
           braceCount--;
           if (braceCount === 0) {
             content += text.substring(0, k);
-            // Parse the content inside braces
-            const obj = this._parseInlinePairs(content.substring(1)); // skip first {
-            return { value: obj, nextIdx: i + 1 };
+            const inner = content.substring(1); // skip first {
+            const value = this._isInlineArray(inner)
+              ? this._parseArray(inner, lines[i].line)
+              : this._parseInlinePairs(inner);
+            return { value, nextIdx: i + 1 };
           }
         }
       }
@@ -243,6 +244,37 @@ class YANParser {
     }
 
     throw new YANParseError(`Unclosed '{' starting near line ${lines[startIdx].line}`);
+  }
+
+  /**
+   * Decide whether the content of a `{ ... }` block is an array (no
+   * top-level `key:` pairs) or an object (has top-level `key:` pairs).
+   * Brace/quote aware so nested `{a: 1}` items inside an array don't
+   * trick this into thinking the outer block is an object.
+   */
+  _isInlineArray(text) {
+    const items = this._smartSplit(text, /[,;]/);
+    for (const item of items) {
+      const trimmed = item.trim();
+      if (!trimmed) continue;
+      // A top-level pair looks like `key: value` with no leading brace/quote
+      // before the colon at depth 0 within this item.
+      if (this._hasTopLevelColon(trimmed)) return false;
+    }
+    return true;
+  }
+
+  _hasTopLevelColon(text) {
+    let inQuotes = false;
+    let braceDepth = 0;
+    for (const ch of text) {
+      if (ch === '"' && !inQuotes) inQuotes = true;
+      else if (ch === '"' && inQuotes) inQuotes = false;
+      else if (ch === '{' && !inQuotes) braceDepth++;
+      else if (ch === '}' && !inQuotes) braceDepth--;
+      else if (ch === ':' && !inQuotes && braceDepth === 0) return true;
+    }
+    return false;
   }
 
   _parseInlinePairs(text) {
@@ -306,14 +338,17 @@ class YANParser {
       return this._parseTypeHint(value, lineNum);
     }
 
-    // Check for array (contains ; not in quotes)
-    if (this._isArray(value)) {
-      return this._parseArray(value, lineNum);
+    // Check for inline object/array { ... }
+    if (value.startsWith('{') && value.endsWith('}')) {
+      const inner = value.slice(1, -1);
+      return this._isInlineArray(inner)
+        ? this._parseArray(inner, lineNum)
+        : this._parseInlinePairs(inner);
     }
 
-    // Check for inline object
-    if (value.startsWith('{')) {
-      return this._parseInlinePairs(value);
+    // Check for bare array (contains top-level ; not in quotes/braces)
+    if (this._isArray(value)) {
+      return this._parseArray(value, lineNum);
     }
 
     // String (quoted)
@@ -340,9 +375,12 @@ class YANParser {
 
   _isArray(text) {
     let inQuotes = false;
+    let braceDepth = 0;
     for (const ch of text) {
       if (ch === '"') inQuotes = !inQuotes;
-      else if (ch === ';' && !inQuotes) return true;
+      else if (ch === '{' && !inQuotes) braceDepth++;
+      else if (ch === '}' && !inQuotes) braceDepth--;
+      else if (ch === ';' && !inQuotes && braceDepth === 0) return true;
     }
     return false;
   }

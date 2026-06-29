@@ -176,8 +176,13 @@ impl YANParser {
                     brace_count -= 1;
                     if brace_count == 0 {
                         content.push_str(&text[..k]);
-                        let obj = self.parse_inline_pairs(&content[1..])?;
-                        return Ok((YANValue::Object(obj), i + 1));
+                        let inner = &content[1..];
+                        let value = if self.is_inline_array(inner) {
+                            self.parse_array(inner, lines[i].line_num)?
+                        } else {
+                            YANValue::Object(self.parse_inline_pairs(inner)?)
+                        };
+                        return Ok((value, i + 1));
                     }
                 }
             }
@@ -258,9 +263,17 @@ impl YANParser {
             return self.parse_array(value, line_num);
         }
 
-        if value.starts_with('{') {
-            let obj = self.parse_inline_pairs(value)?;
-            return Ok(YANValue::Object(obj));
+        if value.starts_with('{') && value.ends_with('}') {
+            let inner = &value[1..value.len() - 1];
+            return if self.is_inline_array(inner) {
+                self.parse_array(inner, line_num)
+            } else {
+                Ok(YANValue::Object(self.parse_inline_pairs(inner)?))
+            };
+        }
+
+        if self.is_array(value) {
+            return self.parse_array(value, line_num);
         }
 
         if value.starts_with('"') {
@@ -284,11 +297,33 @@ impl YANParser {
 
     fn is_array(&self, text: &str) -> bool {
         let mut in_quotes = false;
+        let mut brace_depth = 0;
         for ch in text.chars() {
             if ch == '"' { in_quotes = !in_quotes; }
-            else if ch == ';' && !in_quotes { return true; }
+            else if ch == '{' && !in_quotes { brace_depth += 1; }
+            else if ch == '}' && !in_quotes { brace_depth -= 1; }
+            else if ch == ';' && !in_quotes && brace_depth == 0 { return true; }
         }
         false
+    }
+
+    fn has_top_level_colon(&self, text: &str) -> bool {
+        let mut in_quotes = false;
+        let mut brace_depth = 0;
+        for ch in text.chars() {
+            if ch == '"' { in_quotes = !in_quotes; }
+            else if ch == '{' && !in_quotes { brace_depth += 1; }
+            else if ch == '}' && !in_quotes { brace_depth -= 1; }
+            else if ch == ':' && !in_quotes && brace_depth == 0 { return true; }
+        }
+        false
+    }
+
+    /// A `{ ... }` block is an array if none of its top-level,
+    /// comma/semicolon-separated items has a top-level `key:` colon.
+    fn is_inline_array(&self, text: &str) -> bool {
+        let items = self.smart_split(text, &[';', ',']);
+        !items.iter().any(|item| self.has_top_level_colon(item.trim()))
     }
 
     fn parse_array(&self, text: &str, line_num: usize) -> Result<YANValue, YANParseError> {
@@ -552,4 +587,5 @@ mod tests {
         assert_eq!(result.get("n"), Some(&YANValue::Int(42)));
     }
 }
+
 

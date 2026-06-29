@@ -175,7 +175,7 @@ class YANParser:
 
         return result, i
 
-    def _parse_inline_object(self, lines: List[dict], start: int, raw_value: str) -> Tuple[dict, int]:
+    def _parse_inline_object(self, lines: List[dict], start: int, raw_value: str) -> Tuple[Any, int]:
         brace_count = 0
         content = ""
         i = start
@@ -191,13 +191,45 @@ class YANParser:
                     brace_count -= 1
                     if brace_count == 0:
                         content += text[:k]
-                        obj = self._parse_inline_pairs(content[1:])  # skip first {
-                        return obj, i + 1
+                        inner = content[1:]  # skip first {
+                        if self._is_inline_array(inner):
+                            value = self._parse_array(inner, lines[i]["line"])
+                        else:
+                            value = self._parse_inline_pairs(inner)
+                        return value, i + 1
 
             content += text + " "
             i += 1
 
         raise YANParseError(f"Unclosed '{{' starting near line {lines[start]['line']}")
+
+    def _is_inline_array(self, text: str) -> bool:
+        """A `{ ... }` block is an array if none of its top-level,
+        comma/semicolon-separated items has a top-level `key:` colon."""
+        items = self._smart_split(text, re.compile(r'[,;]'))
+        for item in items:
+            trimmed = item.strip()
+            if not trimmed:
+                continue
+            if self._has_top_level_colon(trimmed):
+                return False
+        return True
+
+    def _has_top_level_colon(self, text: str) -> bool:
+        in_quotes = False
+        brace_depth = 0
+        for ch in text:
+            if ch == '"' and not in_quotes:
+                in_quotes = True
+            elif ch == '"' and in_quotes:
+                in_quotes = False
+            elif ch == "{" and not in_quotes:
+                brace_depth += 1
+            elif ch == "}" and not in_quotes:
+                brace_depth -= 1
+            elif ch == ":" and not in_quotes and brace_depth == 0:
+                return True
+        return False
 
     def _parse_inline_pairs(self, text: str) -> dict:
         result = {}
@@ -265,13 +297,16 @@ class YANParser:
         if value.startswith("@"):
             return self._parse_type_hint(value, line_num)
 
-        # Array
+        # Inline object/array { ... }
+        if value.startswith("{") and value.endswith("}"):
+            inner = value[1:-1]
+            if self._is_inline_array(inner):
+                return self._parse_array(inner, line_num)
+            return self._parse_inline_pairs(inner)
+
+        # Bare array (contains top-level ; not in quotes/braces)
         if self._is_array(value):
             return self._parse_array(value, line_num)
-
-        # Inline object
-        if value.startswith("{"):
-            return self._parse_inline_pairs(value)
 
         # Quoted string
         if value.startswith('"'):
@@ -297,10 +332,15 @@ class YANParser:
 
     def _is_array(self, text: str) -> bool:
         in_quotes = False
+        brace_depth = 0
         for ch in text:
             if ch == '"':
                 in_quotes = not in_quotes
-            elif ch == ";" and not in_quotes:
+            elif ch == "{" and not in_quotes:
+                brace_depth += 1
+            elif ch == "}" and not in_quotes:
+                brace_depth -= 1
+            elif ch == ";" and not in_quotes and brace_depth == 0:
                 return True
         return False
 
